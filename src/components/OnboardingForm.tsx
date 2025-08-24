@@ -55,7 +55,7 @@ export default function OnboardingForm() {
             Tell us about your business
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
-            We'll help you monitor relevant Reddit discussions
+            We&apos;ll help you monitor relevant Reddit discussions
           </p>
         </div>
         

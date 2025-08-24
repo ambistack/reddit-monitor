@@ -1,8 +1,19 @@
 import { createServerClient } from '@supabase/ssr'
-import { NextRequest } from 'next/server'
 import { cookies } from 'next/headers'
+import { findFirstKeywordMatch } from '@/lib/keywordContext'
 
-export async function POST(request: NextRequest) {
+interface MonitoredSubreddit {
+  user_id: string
+  subreddit_name: string
+  keywords: string[]
+  profiles: {
+    business_name: string
+    location: string
+    industry: string
+  }
+}
+
+export async function POST() {
   try {
     console.log('=== Starting Reddit Monitor ===')
     
@@ -57,13 +68,13 @@ export async function POST(request: NextRequest) {
     console.log(`Found ${monitoredSubs.length} subreddit configurations`)
 
     // Group by subreddit to avoid duplicate API calls
-    const subredditGroups = monitoredSubs.reduce((acc, sub) => {
+    const subredditGroups = (monitoredSubs as MonitoredSubreddit[]).reduce((acc, sub) => {
       if (!acc[sub.subreddit_name]) {
         acc[sub.subreddit_name] = []
       }
       acc[sub.subreddit_name].push(sub)
       return acc
-    }, {} as Record<string, any[]>)
+    }, {} as Record<string, MonitoredSubreddit[]>)
 
     console.log(`Processing ${Object.keys(subredditGroups).length} unique subreddits`)
 
@@ -110,38 +121,40 @@ export async function POST(request: NextRequest) {
 
           console.log(`Filtering posts for ${profile.business_name} with keywords:`, keywords)
 
-          // Filter posts by keywords and location
-          const relevantPosts = posts.filter((postWrapper: any) => {
+          // Filter posts by keywords and location - now with keyword tracking
+          const relevantPosts = []
+          
+          for (const postWrapper of posts) {
             const post = postWrapper.data
-            if (!post.title && !post.selftext) return false
+            if (!post.title && !post.selftext) continue
             
             const content = (
               (post.title || '') + ' ' + 
               (post.selftext || '')
-            ).toLowerCase()
-            
-            // Check for keyword matches
-            const hasKeywordMatch = keywords.some((keyword: string) => 
-              content.includes(keyword.toLowerCase())
             )
             
-            // Check for location mentions
-            const hasLocationMatch = location && content.includes(location)
+            // Use new keyword matching function to get details
+            const keywordMatch = findFirstKeywordMatch(
+              content,
+              keywords,
+              location,
+              businessName,
+              industry
+            )
             
-            // Check for business name mentions
-            const hasBusinessMatch = businessName && content.includes(businessName)
-            
-            // Check for industry terms
-            const hasIndustryMatch = industry && content.includes(industry)
-
-            return hasKeywordMatch || hasLocationMatch || hasBusinessMatch || hasIndustryMatch
-          })
+            if (keywordMatch) {
+              relevantPosts.push({
+                post: postWrapper,
+                keywordMatch
+              })
+            }
+          }
 
           console.log(`Found ${relevantPosts.length} relevant posts for ${profile.business_name}`)
 
-          // Save relevant posts to database
+          // Save relevant posts to database with keyword context
           let savedCount = 0
-          for (const postWrapper of relevantPosts) {
+          for (const { post: postWrapper, keywordMatch } of relevantPosts) {
             try {
               const post = postWrapper.data
               const postUrl = `https://reddit.com${post.permalink}`
@@ -156,7 +169,7 @@ export async function POST(request: NextRequest) {
                 .single()
 
               if (!existingMention) {
-                // Insert new mention
+                // Insert new mention with keyword context
                 const { error: insertError } = await supabase
                   .from('mentions')
                   .insert({
@@ -167,12 +180,16 @@ export async function POST(request: NextRequest) {
                     content: postContent.slice(0, 500), // Limit content length
                     author: post.author || 'Unknown',
                     created_at: new Date(post.created_utc * 1000).toISOString(),
-                    notified: false
+                    notified: false,
+                    // New keyword context fields
+                    flagged_keyword: keywordMatch.keyword,
+                    keyword_context: keywordMatch.context,
+                    match_type: keywordMatch.matchType
                   })
 
                 if (!insertError) {
                   savedCount++
-                  console.log(`Saved: "${post.title}"`)
+                  console.log(`Saved: "${post.title}" (flagged for: ${keywordMatch.keyword})`)
                 } else {
                   console.error('Error inserting mention:', insertError)
                 }

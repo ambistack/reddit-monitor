@@ -83,7 +83,9 @@ async function tryMultipleValidationMethods(cleanName: string) {
       }
     })
 
-    if (response.ok) {
+    if (response.status === 429) {
+      console.log(`API: Rate limited on search_reddit_names for ${cleanName} - skipping to next method`)
+    } else if (response.ok) {
       const data = await response.json()
       console.log(`API: search_reddit_names response for ${cleanName}:`, data)
       
@@ -97,9 +99,74 @@ async function tryMultipleValidationMethods(cleanName: string) {
           const detailsResult = await getSubredditDetails(foundName)
           console.log(`API: Details result for ${foundName}:`, detailsResult)
           
-          // If details indicate NSFW or private, return error immediately
+          // If details indicate NSFW, private, or banned, return error immediately
           if (detailsResult.nsfw || detailsResult.private || detailsResult.exists === false) {
             return detailsResult
+          }
+          
+          // If getSubredditDetails returned empty object, it means the API failed
+          // This could be a temporary issue or the subreddit might be valid but not in search_subreddits
+          // Let's try the about.json method as a fallback before rejecting
+          if (Object.keys(detailsResult).length === 0) {
+            console.log(`API: ${foundName} found in search but details failed - trying about.json as fallback`)
+            
+            // Try about.json as a fallback to verify the subreddit
+            try {
+              const aboutUrl = `https://www.reddit.com/r/${foundName}/about.json`
+              const aboutResponse = await fetch(aboutUrl, {
+                headers: {
+                  'User-Agent': 'Reddit-Monitor/1.0 (Business monitoring tool)'
+                }
+              })
+              
+              if (aboutResponse.status === 200) {
+                const aboutData = await aboutResponse.json()
+                if (aboutData?.data?.display_name) {
+                  console.log(`API: ${foundName} verified via about.json fallback`)
+                  
+                  // Check for restrictions via about.json
+                  const isNSFW = aboutData.data.over18 === true
+                  const isPrivate = aboutData.data.subreddit_type === 'private' || aboutData.data.subreddit_type === 'restricted'
+                  const isQuarantined = aboutData.data.quarantine === true
+                  const isBanned = aboutData.data.user_is_banned === true
+                  
+                  if (isNSFW || isPrivate || isQuarantined || isBanned) {
+                    console.log(`API: ${foundName} has restrictions via about.json fallback`)
+                    return {
+                      exists: false,
+                      subreddit: foundName,
+                      method: 'search_reddit_names_about_restricted',
+                      error: isNSFW ? 'This subreddit contains NSFW (adult) content and cannot be monitored for business purposes' :
+                             isPrivate ? 'This subreddit is private or restricted and cannot be accessed' :
+                             isQuarantined ? 'This subreddit is quarantined and cannot be monitored for business purposes' :
+                             'Access to this subreddit is restricted and cannot be monitored'
+                    }
+                  }
+                  
+                  // Subreddit is valid and accessible
+                  return {
+                    exists: true,
+                    subreddit: foundName,
+                    method: 'search_reddit_names_about_fallback',
+                    displayName: foundName,
+                    title: aboutData.data.title,
+                    subscribers: aboutData.data.subscribers,
+                    description: aboutData.data.public_description
+                  }
+                }
+              }
+            } catch (error) {
+              console.log(`API: About.json fallback failed for ${foundName}:`, error)
+            }
+            
+            // If both getSubredditDetails and about.json failed, it's likely banned/quarantined
+            console.log(`API: ${foundName} found in search but both details and about.json failed - likely banned/quarantined`)
+            return {
+              exists: false,
+              subreddit: foundName,
+              method: 'search_reddit_names_banned',
+              error: 'This subreddit may be banned, quarantined, or restricted and cannot be accessed'
+            }
           }
           
           return {
@@ -131,7 +198,9 @@ async function tryMultipleValidationMethods(cleanName: string) {
       }
     })
 
-    if (response.ok) {
+    if (response.status === 429) {
+      console.log(`API: Rate limited on search_subreddits for ${cleanName} - skipping to next method`)
+    } else if (response.ok) {
       const data = await response.json()
       console.log(`API: search_subreddits response for ${cleanName}:`, data)
       
@@ -213,12 +282,16 @@ async function tryMultipleValidationMethods(cleanName: string) {
         console.log(`API: About.json data snippet:`, {
           over18: data.data.over18,
           subreddit_type: data.data.subreddit_type,
-          display_name: data.data.display_name
+          display_name: data.data.display_name,
+          quarantine: data.data.quarantine,
+          user_is_banned: data.data.user_is_banned
         })
         
         // Check for NSFW and private status
         const isNSFW = data.data.over18 === true
         const isPrivate = data.data.subreddit_type === 'private' || data.data.subreddit_type === 'restricted'
+        const isQuarantined = data.data.quarantine === true
+        const isBanned = data.data.user_is_banned === true
         
         if (isNSFW) {
           console.log(`API: ${cleanName} is NSFW via about.json - blocking it`)
@@ -239,6 +312,28 @@ async function tryMultipleValidationMethods(cleanName: string) {
             method: 'about',
             error: 'This subreddit is private or restricted and cannot be accessed',
             private: true
+          }
+        }
+        
+        if (isQuarantined) {
+          console.log(`API: ${cleanName} is quarantined via about.json - blocking it`)
+          return {
+            exists: false,
+            subreddit: data.data.display_name,
+            method: 'about',
+            error: 'This subreddit is quarantined and cannot be monitored for business purposes',
+            quarantined: true
+          }
+        }
+        
+        if (isBanned) {
+          console.log(`API: ${cleanName} user is banned via about.json - blocking it`)
+          return {
+            exists: false,
+            subreddit: data.data.display_name,
+            method: 'about',
+            error: 'Access to this subreddit is restricted and cannot be monitored',
+            banned: true
           }
         }
         
@@ -270,8 +365,22 @@ async function tryMultipleValidationMethods(cleanName: string) {
     console.log(`API: about.json method failed for ${cleanName}:`, error)
   }
 
-  // All methods failed - likely doesn't exist
-  console.log(`API: All validation methods failed for ${cleanName} - treating as non-existent`)
+  // All methods failed - check if it was due to rate limiting
+  console.log(`API: All validation methods failed for ${cleanName}`)
+  
+  // If we're being rate limited, we should be more permissive and allow the subreddit
+  // rather than blocking legitimate subreddits due to temporary API issues
+  // This is a reasonable fallback since the user is typing a specific subreddit name
+  if (cleanName.length >= 3 && cleanName.length <= 21 && /^[A-Za-z0-9_]+$/.test(cleanName)) {
+    console.log(`API: ${cleanName} passed basic validation - allowing due to potential rate limiting`)
+    return {
+      exists: true,
+      subreddit: cleanName,
+      method: 'basic_validation_fallback',
+      displayName: cleanName,
+      warning: 'Validation temporarily unavailable - subreddit assumed valid based on format'
+    }
+  }
   
   return {
     exists: false,

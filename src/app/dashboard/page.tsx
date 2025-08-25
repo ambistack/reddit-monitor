@@ -136,15 +136,24 @@ export default function Dashboard() {
       setAvailableSubreddits(allSubreddits)
       setMonitoredCount(subredditsData?.length || 0)
 
-      // Extract unique keywords from mentions for keyword filter
-      if (mentionsData && mentionsData.length > 0) {
-        const uniqueKeywords = [...new Set(
-          mentionsData
-            .map(m => m.flagged_keyword)
-            .filter(Boolean)
-        )].sort()
+      // Extract ALL unique keywords from monitored subreddits (not just from mentions)
+      if (subredditsData && subredditsData.length > 0) {
+        // Get all keywords from all monitored subreddits
+        const { data: subredditKeywords } = await supabase
+          .from('monitored_subreddits')
+          .select('keywords')
+          .eq('user_id', user.id)
         
-        setAvailableKeywords(uniqueKeywords as string[])
+        if (subredditKeywords) {
+          const allKeywords = subredditKeywords
+            .flatMap(sub => sub.keywords || [])
+            .filter(Boolean)
+          
+          const uniqueKeywords = [...new Set(allKeywords)].sort()
+          setAvailableKeywords(uniqueKeywords as string[])
+        }
+      } else {
+        setAvailableKeywords([])
       }
 
     } catch (error) {
@@ -336,9 +345,7 @@ export default function Dashboard() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
       <ConnectionStatus />
 
-      {!isKeywordManagerActive && (
-        <>
-          {/* Modern Header */}
+      {/* Modern Header */}
           <div className="bg-white/80 backdrop-blur-xl border-b border-white/20 sticky top-0 z-40">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
               <div className="flex justify-between items-center py-6">
@@ -716,8 +723,6 @@ export default function Dashboard() {
               )}
             </ModernCard>
           </div>
-        </>
-      )}
     </div>
   )
 }

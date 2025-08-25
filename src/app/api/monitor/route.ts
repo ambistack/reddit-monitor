@@ -1,5 +1,4 @@
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
+import { createAdminClient } from '@/lib/supabase'
 import { findFirstKeywordMatch } from '@/lib/keywordContext'
 
 interface MonitoredSubreddit {
@@ -22,28 +21,8 @@ export async function POST() {
       return Response.json({ error: 'Supabase not configured' }, { status: 500 })
     }
 
-    // Create proper server-side Supabase client
-    const cookieStore = await cookies()
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return cookieStore.getAll()
-          },
-          setAll(cookiesToSet) {
-            try {
-              cookiesToSet.forEach(({ name, value, options }) =>
-                cookieStore.set(name, value, options)
-              )
-            } catch {
-              // Ignore cookie setting errors in server components
-            }
-          },
-        },
-      }
-    )
+    // Create admin Supabase client
+    const supabase = await createAdminClient()
 
     console.log('Fetching monitored subreddits...')
     

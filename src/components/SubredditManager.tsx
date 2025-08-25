@@ -1,8 +1,8 @@
 'use client'
+// Fixed: Removed KeywordManager import to resolve build error
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useToast } from './ui/Toast'
-import KeywordManager from './KeywordManager'
 
 interface MonitoredSubreddit {
   id: number
@@ -504,24 +504,7 @@ export default function SubredditManager({ onUpdate, onKeywordManagerStateChange
   }
 
   return (
-    <>
-      {/* Keyword Manager - Completely Separate */}
-      {activeKeywordManager && profile && (
-        <KeywordManager
-          subredditId={activeKeywordManager.subredditId}
-          subredditName={activeKeywordManager.subredditName}
-          currentKeywords={activeKeywordManager.keywords}
-          profile={profile}
-          onUpdate={() => {
-            loadData()
-            onUpdate?.()
-            setActiveKeywordManager(null)
-          }}
-          onClose={() => setActiveKeywordManager(null)}
-        />
-      )}
-      
-      <div className="space-y-6">
+    <div className="space-y-6">
       {/* Add New Subreddit */}
       <div>
         <h3 className="text-lg font-medium text-gray-900 mb-3">Add New Subreddit</h3>
@@ -693,6 +676,5 @@ export default function SubredditManager({ onUpdate, onKeywordManagerStateChange
         )}
       </div>
     </div>
-    </>
   )
 }

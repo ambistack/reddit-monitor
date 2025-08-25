@@ -836,7 +836,7 @@ export default function ModernSubredditManager({ onUpdate, onKeywordManagerState
                           ) : (
                             <div className="bg-gray-50 rounded-lg p-3">
                               <p className="text-gray-500 text-sm">
-                                Click "Generate" to get AI-powered keyword suggestions based on your business profile
+                              Click &quot;Generate&quot; to get AI-powered keyword suggestions based on your business profile
                               </p>
                             </div>
                           )}

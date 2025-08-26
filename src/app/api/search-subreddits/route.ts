@@ -28,7 +28,9 @@ export async function POST(request: NextRequest) {
       
       const response = await fetch(searchUrl, {
         headers: {
-          'User-Agent': 'Reddit-Monitor/1.0 (Business monitoring tool)'
+          'User-Agent': 'Mozilla/5.0 (compatible; RedditSearch/1.0)',
+          'Accept': 'application/json',
+          'Cache-Control': 'no-cache'
         }
       })
 
@@ -62,9 +64,14 @@ export async function POST(request: NextRequest) {
         console.log(`API: Trying search_subreddits for more suggestions`)
         const searchUrl = `https://www.reddit.com/api/search_subreddits.json?query=${encodeURIComponent(query)}&include_over_18=false&limit=10`
         
+        // Add delay to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 500))
+        
         const response = await fetch(searchUrl, {
           headers: {
-            'User-Agent': 'Reddit-Monitor/1.0 (Business monitoring tool)'
+            'User-Agent': 'Mozilla/5.0 (compatible; RedditSearch/1.0)',
+            'Accept': 'application/json',
+            'Cache-Control': 'no-cache'
           }
         })
 

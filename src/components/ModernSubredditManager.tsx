@@ -596,6 +596,7 @@ export default function ModernSubredditManager({ onUpdate, onKeywordManagerState
               className={`
                 w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 
                 transition-all duration-200 bg-white/80 backdrop-blur-sm
+                placeholder:text-gray-400 placeholder:animate-shimmer
                 ${
                   validationStatus === 'checking' ? 'border-blue-300 focus:ring-blue-500' :
                   validationStatus === 'valid' ? 'border-green-500 bg-green-50/50 focus:ring-green-500' :

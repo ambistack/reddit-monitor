@@ -98,7 +98,9 @@ export async function POST(request: NextRequest) {
       
       const response = await fetch(postsUrl, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (compatible; RedditBot/1.0)'
+          'User-Agent': 'Mozilla/5.0 (compatible; RedditValidator/1.0)',
+          'Accept': 'application/json',
+          'Cache-Control': 'no-cache'
         }
       })
 

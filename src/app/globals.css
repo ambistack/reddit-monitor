@@ -100,3 +100,14 @@ body::before {
   background: rgba(255, 255, 255, 0.9) !important;
   transform: translateY(-2px);
 }
+
+/* Shimmer animation for placeholder text */
+@keyframes shimmer {
+  0% { opacity: 0.5; }
+  50% { opacity: 0.8; }
+  100% { opacity: 0.5; }
+}
+
+.animate-shimmer {
+  animation: shimmer 2s ease-in-out infinite;
+}

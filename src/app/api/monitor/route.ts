@@ -64,27 +64,42 @@ export async function POST() {
       try {
         console.log(`Fetching posts from r/${subredditName}...`)
         
-        // Use Reddit's JSON API (no authentication required for public posts)
-        const redditUrl = `https://www.reddit.com/r/${subredditName}/hot.json?limit=25`
-        console.log(`Fetching: ${redditUrl}`)
+        // Use our Reddit proxy to avoid rate limiting
+        console.log(`Fetching posts from r/${subredditName} via proxy...`)
         
-        const response = await fetch(redditUrl, {
+        const proxyResponse = await fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/reddit-proxy`, {
+          method: 'POST',
           headers: {
-            'User-Agent': 'RedditMonitor/1.0 (by /u/YourUsername)'
-          }
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            subreddit: subredditName,
+            limit: 25
+          })
         })
 
-        if (!response.ok) {
-          console.error(`Failed to fetch r/${subredditName}: ${response.status} ${response.statusText}`)
+        if (!proxyResponse.ok) {
+          console.error(`Proxy failed for r/${subredditName}: ${proxyResponse.status}`)
           results.push({
             subreddit: subredditName,
-            error: `HTTP ${response.status}: ${response.statusText}`
+            error: `Proxy error: HTTP ${proxyResponse.status}`
           })
           continue
         }
 
-        const data = await response.json()
-        const posts = data.data?.children || []
+        const proxyData = await proxyResponse.json()
+        
+        if (!proxyData.success) {
+          console.error(`Proxy returned error for r/${subredditName}:`, proxyData.error)
+          results.push({
+            subreddit: subredditName,
+            error: proxyData.error
+          })
+          continue
+        }
+
+        const posts = proxyData.posts || []
+        console.log(`✅ Fetched ${posts.length} posts via ${proxyData.source}`)
         
         console.log(`Found ${posts.length} posts in r/${subredditName}`)
 

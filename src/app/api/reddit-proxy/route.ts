@@ -48,7 +48,7 @@ async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 3)
   throw new Error('Max retries exceeded')
 }
 
-async function fetchRedditData(subreddit: string, limit = 25): Promise<any> {
+async function fetchRedditData(subreddit: string, limit = 25): Promise<{ data: any; source: string }> {
   const errors: string[] = []
   
   // Try each source until one works

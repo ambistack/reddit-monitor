@@ -50,7 +50,6 @@ export default function Dashboard() {
   const [showSubredditManager, setShowSubredditManager] = useState(false)
   const [showProfileEditor, setShowProfileEditor] = useState(false)
   const [monitoredCount, setMonitoredCount] = useState(0)
-  const [isKeywordManagerActive, setIsKeywordManagerActive] = useState(false)
   const { addToast } = useToast()
   const supabase = createClient()
 
@@ -427,7 +426,7 @@ export default function Dashboard() {
                 </div>
                 <ModernSubredditManager 
                   onUpdate={loadData} 
-                  onKeywordManagerStateChange={setIsKeywordManagerActive}
+                  onKeywordManagerStateChange={() => {}}
                 />
               </ModernCard>
             )}

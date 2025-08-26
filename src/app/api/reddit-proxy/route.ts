@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+// Reddit API response interface
+interface RedditData {
+  data?: {
+    children?: unknown[]
+  }
+}
+
 // Multiple Reddit data sources to avoid rate limiting
 const REDDIT_SOURCES = [
   {
@@ -48,7 +55,7 @@ async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 3)
   throw new Error('Max retries exceeded')
 }
 
-async function fetchRedditData(subreddit: string, limit = 25): Promise<{ data: any; source: string }> {
+async function fetchRedditData(subreddit: string, limit = 25): Promise<{ data: RedditData; source: string }> {
   const errors: string[] = []
   
   // Try each source until one works
